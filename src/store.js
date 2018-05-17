@@ -5,7 +5,8 @@ Vue.use(Vuex);
 
 export default new Vuex.Store({
   state: {
-    msg: 'Hello world!'
+    msg: 'Hello world!',
+      goalYear: 1514764800
   },
   mutations: {},
   actions: {}

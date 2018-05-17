@@ -123,8 +123,7 @@ let insertArtistDB = db.prepare('INSERT INTO artists (artist_name, artist_mbid, 
         });
 };
 //insertArtist(artists, 0)
-let getAlbums = db.prepare("SELECT DISTINCT track_album, track_artist_name FROM Tracks");
-let albums = getAlbums.all();
+let getAlbums = db.prepare("SELECT * FROM albums WHERE album_url IS NULL");
 const insertAlbums = (albums, index) => {
     let insertAlbumDB = db.prepare("INSERT INTO albums (album_name, album_artist, album_mbid, album_image, album_tags) VALUES ($album_name, $album_artist, $album_mbid, $album_image, $album_tags)");
     let insertTracksDB = db.prepare("INSERT INTO album_tracks (album_id, album_name, artist_name, artist_mbid, album_track_name, track_url, track_duration) VALUES ($album_id, $album_name, $artist_name, $artist_mbid, $album_track_name, $track_url, $track_duration)");
@@ -177,6 +176,112 @@ const insertAlbums = (albums, index) => {
     })
 };
 //insertAlbums(albums,0);
-let allTracksDB = db.prepare("SELECT * FROM tracks WHERE local_artist_id = 10");
-console.log(allTracksDB.all());
-export default db;
+let albums = getAlbums.all();
+let updateAlbum = db.prepare("UPDATE albums SET album_url = $url WHERE album_id = $id")
+const updateAlbums = (albums, index) => {
+        let album_url;
+        let API_url;
+        let album = albums[index];
+        let id = album.album_id;
+        if (album.album_mbid) {
+            API_url = "http://ws.audioscrobbler.com/2.0/?method=album.getinfo&mbid=" + album.album_mbid + "&api_key=" + API_KEY + "&format=json";
+        } else {
+            API_url = "http://ws.audioscrobbler.com/2.0/?method=album.getinfo&artist=" + encodeURIComponent(album.album_artist) + "&album=" + encodeURIComponent(album.album_name) + "&api_key=" + API_KEY + "&format=json";
+        }
+        fetch(
+            API_url,
+            {
+                method: "GET",
+                headers: {
+                    Accept: "application/json",
+                    "Content-Type": "application/json"
+                }
+            }
+        )
+            .then(response => response.json())
+            .catch(error => {
+                console.error('Error:', error, "failed to update index: ", index)
+                let newIndex = index + 1;
+                setTimeout(function(){updateAlbums(albums, newIndex)},250)
+            })
+            .then(r => {
+                if(r.album.url) {
+                    updateAlbum.run({id, url: r.album.url})
+                }
+                if(index % 100 == 0) console.log("Updated ", index, "/", albums.length)
+                let newIndex = index + 1;
+                setTimeout(function(){updateAlbums(albums, newIndex)},250)
+            })
+};
+
+const updateAlbumTrackIds = () => {
+    let getAllTracks = db.prepare("SELECT * FROM tracks WHERE local_album_track_id IS NULL AND track_date > $latest ORDER BY track_date DESC");
+    const getLatestTrackDate = db.prepare("SELECT track_date FROM tracks ORDER BY track_date DESC LIMIT 1");
+    const latest = parseInt(getLatestTrackDate.get().track_date)-6000;
+    let allTracksArray = getAllTracks.all({latest});
+    let findLocalId = db.prepare("SELECT album_track_id FROM album_tracks WHERE album_id = $album_id AND album_track_name = $album_track_name COLLATE NOCASE")
+    let updatetrack = db.prepare("UPDATE tracks SET local_album_track_id = $trackId WHERE track_id = $id")
+    allTracksArray.map((track, index) => {
+        let trackId = findLocalId.get({ album_id: track.local_album_id, album_track_name: track.track_name });
+        if(trackId) updatetrack.run({ trackId: trackId.album_track_id, id: track.track_id })
+        if(index % 100 === 0) console.log(index, "/", allTracksArray.length);
+    });
+};
+updateAlbumTrackIds();
+const addArtistIds = () => {
+    let getAlbums = db.prepare("SELECT * FROM albums WHERE album_artist_id IS NULL");
+    let findArtist = db.prepare("SELECT artist_id, artist_name FROM artists WHERE artist_name = $artist_name");
+    let updateAlbum = db.prepare("UPDATE albums SET album_artist_id = $artist_id WHERE album_id = $album_id");
+    let allAlbums = getAlbums.all();
+    allAlbums.map((album, index) => {
+        let artist = findArtist.get({artist_name: album.album_artist});
+        console.log(album, artist)
+        let artistId = artist.artist_id;
+        updateAlbum.run({artist_id: artistId, album_id: album.album_id});
+        if(index % 100 === 0) console.log(index, "/", allAlbums.length)
+    });
+};
+//addArtistIds();
+const findCompleted = (year) => {
+    let getInfo = db.prepare('SELECT artist_id, artist_name, album_track_id, plays, first_play FROM artists LEFT JOIN (SELECT album_id, album_artist_id, group_concat(album_id || \':\' ||album_track_id) AS album_track_id, group_concat(album_id||\':\'||album_track_id||\':\'||first_play) AS plays, min(first_play) AS first_play FROM albums al LEFT JOIN (SELECT album_id AS album_track_album_id, album_track_id FROM album_tracks ) ON al.album_id = album_track_album_id LEFT JOIN (SELECT local_album_track_id, min(track_date) AS first_play FROM tracks GROUP BY local_album_track_id) ON album_track_id = local_album_track_id GROUP BY album_artist_id) ON artist_id = album_artist_id WHERE first_play > $year LIMIT 100 OFFSET 0')
+    let info = getInfo.all({year});
+    info.map(artist => {
+        let completed = false;
+        let albums = artist.album_track_id.split(',');
+        let plays = artist.plays.split(',');
+        plays = plays.map(play => {
+            let data = play.split(':');
+            return {albumId: parseInt(data[0]),  trackId: parseInt(data[1]), firstPlay: parseInt(data[2])}
+        });
+        albums = albums.map(album => {
+            let data = album.split(':');
+            let found = plays.find(item => item.albumId == parseInt(data[0]) && item.trackId == parseInt(data[1]) && item.firstPlay > year);
+            let completed = found ? true : false;
+            return {albumId: parseInt(data[0]), trackId: parseInt(data[1]), completed}
+        });
+        albums.map(album => {
+            let oneAlbum = albums.filter(item => item.albumId == album.albumId);
+            let found = oneAlbum.find(item => item.completed == false);
+            if(!found) completed = true;
+        });
+        artist.completed = completed;
+    })
+    console.log(info)
+};
+//findCompleted(1514764800);
+const updateAlbumIds = () => {
+    let getAllTracks = db.prepare("SELECT * FROM tracks ORDER BY track_date DESC");
+    let allTracksArray = getAllTracks.all();
+    let findLocalId = db.prepare("SELECT album_id FROM albums WHERE album_artist = $album_artist COLLATE NOCASE AND album_name = $album_name COLLATE NOCASE")
+    let updatetrack = db.prepare("UPDATE tracks SET local_album_id = $trackId WHERE track_id = $id");
+    let updated = 0;
+    allTracksArray.map((track, index) => {
+        let trackId = findLocalId.get({ album_name: track.track_album, album_artist: track.track_artist_name });
+        if(trackId) {
+            updatetrack.run({trackId: trackId.album_id, id: track.track_id});
+            updated++
+        }
+        if(index % 100 === 0) console.log(updated, "/", index, "/", allTracksArray.length);
+    });
+};
+//updateAlbumIds();
