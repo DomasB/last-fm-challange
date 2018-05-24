@@ -12,6 +12,7 @@
                         :mainTitle="artist.artist_name"
                         :mainLink="'/artist/'+artist.artist_id"
                         :cardDate="artist.first_play"
+                        :tags="JSON.parse(artist.artist_tags)"
                         dateText="First played"
                         :badges="artist.first_play > $store.state.goalYear ? [{ text:'new', color: 'red' }] : []"
                 ></Card>
@@ -23,7 +24,6 @@
 
 <script>
     // @ is an alias to /src
-    const fetch = require('node-fetch');
     import Card from "@/components/Card.vue";
     import Pages from "@/components/Pages.vue";
     import Loader from "@/components/Loader.vue"
@@ -31,8 +31,6 @@
         name: "Artists",
         data () {
             return {
-                totalPages: 1,
-                artists: []
             }
         },
         props: ["limit", "page"],
@@ -56,31 +54,24 @@
         },
         methods: {
             getPage(limit, page) {
-                fetch(
-                    "http://localhost:3000/api/artists/" + limit + "/" + page,
-                    {
-                        method: "GET",
-                        headers: {
-                            Accept: "application/json",
-                            "Content-Type": "application/json"
-                        }
-                    }
-                )
-                    .then(response => response.json())
-                    .then(r => {
-                        if(!r.error) {
-                            this.artists = r.artists;
-                            this.totalPages = r.totalPages;
-                        }
-                    });
+                this.$store.dispatch('getArtists', {limit, page});
             }
         },
         computed: {
+            artists() {
+                return this.$store.state.artists;
+            },
             pages() {
                 let pagesArray = Array.from(Array(this.totalPages).keys());
-                pagesArray.shift()
+                pagesArray.shift();
                 pagesArray.push(this.totalPages);
                 return pagesArray
+            },
+            activePage() {
+                return this.$store.state.activePage;
+            },
+            totalPages() {
+                return this.$store.state.totalPages;
             }
         },
         components: {
@@ -91,10 +82,7 @@
     };
 </script>
 
-<style>
-    .page-link {
-        margin: 0px 10px;
-    }
+<style scoped>
     .artist-list {
         display: flex;
         flex-direction: row;

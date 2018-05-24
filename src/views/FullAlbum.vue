@@ -23,7 +23,7 @@
 
 <script>
     // @ is an alias to /src
-    const fetch = require('node-fetch');
+    import fetcher from "@/fetcher";
     const moment = require('moment');
     import Loader from "@/components/Loader.vue"
     import FontAwesomeIcon from '@fortawesome/vue-fontawesome'
@@ -32,10 +32,7 @@
         name: "fullAlbum",
         data () {
             return {
-                album: {},
-                tracks: [],
-                missing: [],
-                loading: true
+                loading: false
             }
         },
         props: ["id"],
@@ -60,68 +57,17 @@
         methods: {
             setData (id) {
                 this.loading = true;
-                fetch(
-                    "http://localhost:3000/api/album/" + id,
-                    {
-                        method: "GET",
-                        headers: {
-                            Accept: "application/json",
-                            "Content-Type": "application/json"
-                        }
-                    }
-                )
-                    .then(response => response.json())
-                    .then(r => {
-                        if(!r[0].error) {
-                            r[0].album_tags = JSON.parse(r[0].album_tags);
-                            this.getMissing(r[0].album_artist_id);
-                        }
-                        this.loading = false;
-                        this.album = r[0];
-                        this.tracks = r;
-                    });
-            },
-            getMissing(id) {
-                fetch(
-                    "http://localhost:3000/api/missing/" + id,
-                    {
-                        method: "GET",
-                        headers: {
-                            Accept: "application/json",
-                            "Content-Type": "application/json"
-                        }
-                    }
-                )
-                    .then(response => response.json())
-                    .then(r => {
-                        if(!r[0].error) {
-                            this.missing = r.sort((a,b) => {
-                                if(String(a.track_album).toLowerCase() > String(b.track_album).toLowerCase()) return 1
-                                if(String(a.track_album).toLowerCase() < String(b.track_album).toLowerCase()) return -1
-                                if(String(a.track_name).toLowerCase() > String(b.track_name).toLowerCase()) return 1
-                                if(String(a.track_name).toLowerCase() < String(b.track_name).toLowerCase()) return -1
-                                return 0
-                            })
-                        }
-                    });
+                this.$store.dispatch('getAlbumInfo', id).then(() => {this.loading = false});
             },
             mapTrack(id, albumId) {
                 let selector = document.getElementById(id);
                 let selectedIndex = selector.selectedIndex;
                 let values = selector.options[selectedIndex].value;
-                fetch(
-                    "http://localhost:3000/api/maptracks/" + id + "/" + values,
-                    {
-                        method: "GET",
-                        headers: {
-                            Accept: "application/json",
-                            "Content-Type": "application/json"
-                        }
-                    }
-                )
-                    .then(() => {
-                        this.setData(albumId)
-                    });
+                let url = "http://localhost:3000/api/maptracks/" + id + "/" + values;
+                let callback = () => {
+                    this.setData(albumId)
+                };
+                fetcher(url, callback);
             },
             getDate(time) {
                 return moment(time*1000).format("YYYY-MM-DD HH:mm")
@@ -140,6 +86,17 @@
                 el.select();
                 document.execCommand('copy');
                 document.body.removeChild(el);
+            }
+        },
+        computed: {
+            album() {
+                return this.$store.state.album;
+            },
+            tracks() {
+                return this.$store.state.albumTracks;
+            },
+            missing() {
+                return this.$store.getters.getMissingTracks;
             }
         },
         components: {

@@ -8,6 +8,7 @@ import Artists from "./views/Artists.vue";
 import CompletedArtists from "./views/CompletedArtists.vue";
 import Albums from "./views/Albums.vue";
 import Tag from "./views/Tag.vue";
+import Tags from "./views/Tags.vue";
 Vue.use(Router);
 
 export default new Router({
@@ -41,10 +42,9 @@ export default new Router({
           props:true
       },
       {
-          path: "/completedartists/:year",
+          path: "/completedartists",
           name: "Completed Artists",
           component: CompletedArtists,
-          props:true
       },
       {
           path: "/tag/:tag",
@@ -57,6 +57,11 @@ export default new Router({
           name: "Albums",
           component: Albums,
           props:true
+      },
+      {
+          path: "/tags",
+          name: "Tags",
+          component: Tags
       },
 
   ],

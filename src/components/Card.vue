@@ -23,6 +23,9 @@
                 {{dateText}}: <nobr>{{getDate(cardDate)}}</nobr>
             </div>
         </div>
+        <div class="tags-container" v-if="tags">
+            <TagIcon class="tag-icons" v-for="tag in tags" :tagName="tag" isLink></TagIcon>
+        </div>
         <div class="card-badges" v-if="badges">
             <div v-for="badge in badges" :class="'badge ' + badge.color">{{badge.text}}</div>
         </div>
@@ -31,6 +34,8 @@
 
 <script>
     const moment = require('moment');
+    import TagIcon from "@/components/TagIcon.vue";
+
     export default {
         name: "Card",
         props: {
@@ -44,6 +49,7 @@
             secondLink: String,
             cardDate: Number,
             dateText: String,
+            tags: Array,
             badges: Array,
             size: {
                 type: String,
@@ -54,7 +60,8 @@
             getDate(time) {
                 return moment(time*1000).format("YYYY-MM-DD HH:mm")
             },
-        }
+        },
+        components: { TagIcon }
     };
 </script>
 
@@ -112,7 +119,13 @@
         right: 7px;
         bottom: 9px;
     }
-
+    .tag-container {
+        display:inline-block;
+    }
+    .tag-icons {
+        display: inline-block;
+        margin:1px;
+    }
     .badge {
         padding: 2px 4px 2px 2px;
         margin: 0px 2px;

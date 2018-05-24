@@ -227,7 +227,7 @@ const updateAlbumTrackIds = () => {
         if(index % 100 === 0) console.log(index, "/", allTracksArray.length);
     });
 };
-updateAlbumTrackIds();
+//updateAlbumTrackIds();
 const addArtistIds = () => {
     let getAlbums = db.prepare("SELECT * FROM albums WHERE album_artist_id IS NULL");
     let findArtist = db.prepare("SELECT artist_id, artist_name FROM artists WHERE artist_name = $artist_name");
@@ -285,3 +285,48 @@ const updateAlbumIds = () => {
     });
 };
 //updateAlbumIds();
+const getTags = () => {
+    let getArtistTags = db.prepare("SELECT DISTINCT artist_tags FROM artists");
+    let getAlbumTags = db.prepare("SELECT DISTINCT album_tags FROM albums");
+    let getTags = db.prepare("SELECT tag_id FROM tags WHERE tag_name = $name");
+    let insertTag = db.prepare("INSERT INTO tags (tag_name) VALUES ($name)");
+    let artistTags = getArtistTags.all();
+    let tagsAdded = 0;
+    artistTags.map((taglist, index) => {
+        let tags = JSON.parse(taglist.artist_tags);
+        tags.map(tag =>{
+            let inDB = getTags.get({name: tag});
+            if (!inDB) {
+                insertTag.run({name: tag});
+                tagsAdded++;
+            }
+        })
+        if(index % 100 === 0) console.log("Added tags:", tagsAdded);
+    });
+    let albumTags = getAlbumTags.all();
+    albumTags.map((taglist, index) => {
+        let tags = JSON.parse(taglist.album_tags);
+        tags.map(tag =>{
+            let inDB = getTags.get({name: tag});
+            if (!inDB) {
+                insertTag.run({name: tag});
+                tagsAdded++;
+            }
+        })
+        if(index % 100 === 0) console.log("Added tags:", tagsAdded);
+    })
+};
+//getTags();
+const updateTags = () => {
+    let getCount = db.prepare("SELECT group_concat(artist_id), artist_tags, sum(playcount) as playcount FROM artists LEFT JOIN (SELECT count(track_id) AS playcount, local_artist_id FROM tracks GROUP BY local_artist_id) ON artist_id = local_artist_id WHERE artist_tags LIKE '%\"' || $name || '\"%' ")
+    let selectAllTags = db.prepare("SELECT tag_id, tag_name FROM tags");
+    let updateTags = db.prepare("UPDATE tags SET play_count = $play_count WHERE tag_id = $id");
+    let allTags = selectAllTags.all();
+    let updated = 0;
+    allTags.map((tag, index) => {
+        let count = getCount.get({name: tag.tag_name}).playcount;
+        if(count) updateTags.run({play_count: count, id: tag.tag_id}) && updated++;
+        if(index % 100 === 0) console.log("Updated", updated, "/", allTags.length);
+    })
+};
+updateTags();

@@ -19,7 +19,7 @@
                     :badges="artist.completed ? [{ text:'completed', color: 'green' }] : []"
             ></Card>
         </ul>
-        <Loader v-if="artists.length == 0">Loading...</Loader>
+        <Loader v-if="artists.length === 0">Loading...</Loader>
     </div>
 </template>
 
@@ -32,41 +32,30 @@
         name: "CompletedArtists",
         data () {
             return {
-                artists: [],
-                completed: 0,
                 showCompleted: true
             }
         },
-        props: ["year"],
         beforeRouteEnter (to, from, next) {
             //let getArtistDB = db.prepare("SELECT * FROM artists WHERE artist_id = $id");
-            next(vm => vm.getPage(to.params.year));
+            next(vm => vm.getData());
             //getArtistDB.get({id:this.id});
         },
         beforeRouteUpdate (to, from, next) {
             //let getArtistDB = db.prepare("SELECT * FROM artists WHERE artist_id = $id");
-            next(vm => vm.getPage(to.params.year));
+            next(vm => vm.getData());
             //getArtistDB.get({id:this.id});
         },
         methods: {
-            getPage(year) {
-                fetch(
-                    "http://localhost:3000/api/completedartists/" + year,
-                    {
-                        method: "GET",
-                        headers: {
-                            Accept: "application/json",
-                            "Content-Type": "application/json"
-                        }
-                    }
-                )
-                    .then(response => response.json())
-                    .then(r => {
-                        if(!r.error) {
-                            this.artists = r.artists;
-                            this.completed = r.completedArtists;
-                        }
-                    });
+            getData() {
+                this.$store.dispatch('getCompleted');
+            }
+        },
+        computed: {
+            artists() {
+                return this.$store.state.completedArtists;
+            },
+            completed() {
+               return this.$store.state.completedCount;
             }
         },
         components: {

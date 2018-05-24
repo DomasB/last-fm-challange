@@ -1,6 +1,7 @@
 <template>
     <div>
-        <h1>#{{tag}}</h1>
+        <h1><a :href="'https://www.last.fm/tag/' + tag" target="_blank">#{{tag}}</a> <TagIcon @click.native="startEditing()" class="title-tag-icon" :tagName="tag" :tagIcon="tagIcon" :tagColor="tagColor" ></TagIcon></h1> {{tagIcon}}
+        <TagIconSelector v-if="editingTag" @saveIcon="save($event)" :tagName="tag" :tagColor="tagColor" :tagIcon="tagIcon"></TagIconSelector>
         <div class="by-tag-section">
             <h2>Artists</h2>
             <div class="by-tag-list">
@@ -42,14 +43,21 @@
 <script>
     // @ is an alias to /src
     const fetch = require('node-fetch');
+    import fetcher from "@/fetcher";
     import Card from "@/components/Card.vue";
+    import TagIcon from "@/components/TagIcon.vue";
+    import TagIconSelector from "@/components/TagIconSelector.vue";
     import Loader from "@/components/Loader.vue"
     export default {
         name: "Tag",
         data () {
             return {
                 artists: [],
-                albums: []
+                albums: [],
+                editingTag: false,
+                tagId: 0,
+                tagColor: '#000',
+                tagIcon: 'info-circle'
             }
         },
         props: ["tag"],
@@ -62,6 +70,15 @@
             //let getArtistDB = db.prepare("SELECT * FROM artists WHERE artist_id = $id");
             next(vm => vm.getPage(to.params.tag));
             //getArtistDB.get({id:this.id});
+        },
+        created() {
+            let url = "http://localhost:3000/api/gettagbyname/" + this.tag;
+            let callback = r => {
+                this.tagIcon = r.tag_icon;
+                this.tagColor = r.tag_color;
+                this.tagId = r.tag_id;
+            };
+            fetcher(url, callback)
         },
         methods: {
             getPage(tag) {
@@ -97,16 +114,36 @@
                             this.albums = r;
                         }
                     });
+            },
+            save(event) {
+                let url = "http://localhost:3000/api/updatetags/" + this.tagId + "/" + encodeURIComponent(event.tag_color) + "/" + encodeURIComponent(event.tag_icon);
+                let callback = r => {
+                    this.tagIcon = event.tag_icon;
+                    this.tagColor = event.tag_color;
+                    this.editingTag = false;
+                }
+                fetcher(url, callback);
+            },
+            startEditing() {
+                this.editingTag = true;
             }
         },
         components: {
             Card,
-            Loader
+            Loader,
+            TagIcon,
+            TagIconSelector
         }
     };
 </script>
 
 <style scoped>
+
+    .title-tag-icon {
+        display:inline-block;
+        position: relative;
+        bottom: 7px;
+    }
     .by-tag-section {
         width: 48%;
         float:left;

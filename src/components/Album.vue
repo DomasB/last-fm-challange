@@ -3,8 +3,8 @@
         <router-link :to="'/album/'+albumId"><div class="album-title">{{title}}</div></router-link>
         <div class="image-container">
             <img :src="image" class="album-image" />
-            <div :class="completed ? 'new-album completed' : 'new-album'" v-if="firstPlay > $store.state.goalYear" :title="getDate(firstPlay)">NEW</div>
-            <div :class="completed ? 'new-album completed' : 'new-album'" v-if="firstPlay <= $store.state.goalYear&& completed" :title="getDate(firstPlay)">+</div>
+            <div :class="albumCompleted ? 'new-album completed' : 'new-album'" v-if="firstPlay > $store.state.goalYear" :title="getDate(firstPlay)">NEW</div>
+            <div :class="albumCompleted ? 'new-album completed' : 'new-album'" v-if="firstPlay <= $store.state.goalYear && albumCompleted" :title="getDate(firstPlay)">+</div>
         </div>
         <ul class="tag-list">
             <li v-for="tag in JSON.parse(tags)"><router-link :to="'/tag/'+encodeURIComponent(tag)">{{tag}}</router-link></li>
@@ -24,20 +24,7 @@
             url: String,
             tags: String,
             firstPlay: Number,
-            albumTracks: String,
-            playedTracks: String
-        },
-        computed: {
-            completed() {
-                if(!this.albumTracks || !this.playedTracks || this.albumTracks.length == 0 || this.playedTracks.length == 0) return false;
-                let albumArray = this.albumTracks.split(',');
-                let playedArray = this.playedTracks.split(',');
-                let isCompleted = true;
-                albumArray.map(track => {
-                    if(playedArray.indexOf(track) < 0) isCompleted = false;
-                });
-                return isCompleted;
-            }
+            albumCompleted: Boolean
         },
         methods: {
             getDate(time) {

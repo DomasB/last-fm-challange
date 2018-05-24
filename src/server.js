@@ -2,16 +2,23 @@ const express = require('express');
 const app = express();
 const Database = require('better-sqlite3');
 const fetch = require('node-fetch');
-const db = new Database('database/last-fm.db');
+const db = new Database('./src/database/last-fm.db');
 
 const USER = 'briediz';
 const API_KEY = 'e054746cf363b1b4d0f42a5b587054dc';
 
 const getArtistById = db.prepare("SELECT * FROM artists WHERE artist_id = $id");
 const getArtistByName = db.prepare("SELECT * FROM artists WHERE artist_name = $name");
-const getAlbumsByArtist = db.prepare("SELECT * FROM albums a LEFT JOIN (SELECT group_concat(album_track_id) as album_track_ids, album_id as track_album_id FROM album_tracks t GROUP BY track_album_id ) ON a.album_id = track_album_id LEFT JOIN (SELECT group_concat(local_album_track_id) as tracks_ids, local_album_id FROM (SELECT DISTINCT local_album_track_id, local_album_id FROM tracks ORDER BY local_album_track_id ASC) GROUP BY local_album_id) ON a.album_id = local_album_id LEFT JOIN (SELECT track_date AS first_play, local_album_id AS fp_local_album_id FROM tracks GROUP BY fp_local_album_id ORDER BY first_play ASC) ON a.album_id = fp_local_album_id WHERE a.album_artist = $name");
-const getAlbums = db.prepare("SELECT * FROM albums a LEFT JOIN (SELECT group_concat(album_track_id) as album_track_ids, album_id as track_album_id FROM album_tracks t GROUP BY track_album_id ) ON a.album_id = track_album_id LEFT JOIN (SELECT group_concat(local_album_track_id) as tracks_ids, local_album_id FROM (SELECT DISTINCT local_album_track_id, local_album_id FROM tracks ORDER BY local_album_track_id ASC) GROUP BY local_album_id) ON a.album_id = local_album_id LEFT JOIN (SELECT min(track_date) AS first_play, local_album_id AS fp_local_album_id FROM tracks GROUP BY fp_local_album_id) ON a.album_id = fp_local_album_id ORDER BY first_play DESC LIMIT $limit OFFSET $offset");
-const getAlbumById = db.prepare("SELECT * FROM albums a LEFT JOIN (SELECT  album_id AS track_album_id, album_track_name, album_track_id, track_url, track_duration FROM album_tracks t) ON a.album_id = track_album_id LEFT JOIN (SELECT COUNT(track_id) AS play_count, min(track_date) AS first_play, local_album_track_id FROM tracks GROUP BY local_album_track_id) ON local_album_track_id = album_track_id WHERE a.album_id = $id");
+const getArtistInfo = db.prepare("SELECT artist_id, artist_name, artist_image, artist_url, artist_tags, album_id, album_name, album_image, album_url, album_tags, album_track_ids, track_ids, first_play FROM artists \n" +
+    "LEFT JOIN (SELECT album_id, album_name, album_image, album_url, album_tags, album_artist_id FROM albums) ON artist_id = album_artist_id\n" +
+    "LEFT JOIN (SELECT group_concat(album_track_id) as album_track_ids, album_id AS track_album_id FROM album_tracks GROUP BY track_album_id) ON album_id = track_album_id\n" +
+    "LEFT JOIN (SELECT group_concat(local_album_track_id) as track_ids, local_album_id FROM \n" +
+    "(SELECT DISTINCT local_album_track_id, local_album_id FROM tracks ORDER BY local_album_track_id ASC) GROUP BY local_album_id) ON album_id = local_album_id \n" +
+    "LEFT JOIN (SELECT track_date AS first_play, local_album_id AS fp_local_album_id FROM tracks GROUP BY fp_local_album_id ORDER BY first_play ASC) ON album_id = fp_local_album_id\n" +
+    "WHERE artist_id = $id");
+const getAlbums = db.prepare("SELECT album_id, album_name, album_mbid, album_artist, album_image, album_tags, album_url, album_artist_id, tracks_ids, album_track_ids, first_play FROM albums a LEFT JOIN (SELECT group_concat(album_track_id) as album_track_ids, album_id as track_album_id FROM album_tracks t GROUP BY track_album_id ) ON a.album_id = track_album_id LEFT JOIN (SELECT group_concat(local_album_track_id) as tracks_ids, local_album_id FROM (SELECT DISTINCT local_album_track_id, local_album_id FROM tracks ORDER BY local_album_track_id ASC) GROUP BY local_album_id) ON a.album_id = local_album_id LEFT JOIN (SELECT min(track_date) AS first_play, local_album_id AS fp_local_album_id FROM tracks GROUP BY fp_local_album_id) ON a.album_id = fp_local_album_id ORDER BY first_play DESC LIMIT $limit OFFSET $offset");
+const getAlbumById = db.prepare("SELECT * FROM albums WHERE album_id = $id");
+const getAlbumTracksById = db.prepare("SELECT  album_id , album_track_name, album_track_id, track_url, track_duration, play_count, first_play FROM album_tracks t LEFT JOIN (SELECT COUNT(track_id) AS play_count, min(track_date) AS first_play, local_album_track_id FROM tracks GROUP BY local_album_track_id) ON local_album_track_id = album_track_id WHERE album_id = $id");
 const getMissingTracks = db.prepare("SELECT *, group_concat(track_id) AS track_ids FROM tracks WHERE (local_album_id IS NULL OR local_album_track_id IS NULL ) AND local_artist_id = $id GROUP BY track_name")
 const getAlbumByName = db.prepare("SELECT * FROM albums WHERE album_name = $name AND album_artist = $artist");
 const getArtists = db.prepare("SELECT * FROM artists LEFT JOIN (SELECT  min(track_date) AS first_play, local_artist_id FROM tracks GROUP BY local_artist_id) ON artist_id = local_artist_id ORDER BY first_play DESC LIMIT $limit OFFSET $offset");
@@ -19,7 +26,7 @@ const getArtistCount = db.prepare("SELECT COUNT(artist_id) FROM artists");
 const getArtistsByTag = db.prepare("SELECT artist_id, artist_name, first_play, artist_tags FROM artists LEFT JOIN (SELECT local_artist_id, min(track_date) AS first_play FROM tracks GROUP BY local_artist_id) ON artist_id = local_artist_id WHERE artist_tags LIKE '%' || $tag || '%' ORDER BY first_play DESC")
 const getCompletedArtists = db.prepare('SELECT artist_id, artist_name, album_track_id, plays, fp AS first_play FROM artists LEFT JOIN (SELECT album_id, album_artist_id, group_concat(album_id || \':\' ||album_track_id) AS album_track_id, group_concat(album_id||\':\'||album_track_id||\':\'||first_play) AS plays, min(first_play) AS first_play FROM albums al LEFT JOIN (SELECT album_id AS album_track_album_id, album_track_id FROM album_tracks ) ON al.album_id = album_track_album_id LEFT JOIN (SELECT local_album_track_id, min(track_date) AS first_play FROM tracks GROUP BY local_album_track_id) ON album_track_id = local_album_track_id GROUP BY album_artist_id) ON artist_id = album_artist_id LEFT JOIN (SELECT min(track_date) AS fp, local_artist_id FROM tracks GROUP BY local_artist_id) ON local_artist_id = artist_id WHERE fp > $year ORDER BY fp DESC');
 const getAlbumCount = db.prepare("SELECT COUNT(album_id) FROM albums");
-const getAlbumsByTag = db.prepare("SELECT album_id, album_name, album_artist, first_play, album_tags FROM albums LEFT JOIN (SELECT local_album_id, min(track_date) AS first_play FROM tracks GROUP BY local_album_id) ON album_id = local_album_id WHERE album_tags LIKE '%' || $tag || '%' ORDER BY first_play DESC");
+const getAlbumsByTag = db.prepare("SELECT album_id, album_name, album_artist, album_artist_id, first_play, album_tags FROM albums LEFT JOIN (SELECT local_album_id, min(track_date) AS first_play FROM tracks GROUP BY local_album_id) ON album_id = local_album_id WHERE album_tags LIKE '%' || $tag || '%' ORDER BY first_play DESC");
 const getLatestTrackDate = db.prepare("SELECT track_date FROM tracks ORDER BY track_date DESC LIMIT 1");
 const checkNewTrack = db.prepare("SELECT * FROM Tracks WHERE track_date < $track_date AND track_artist_name = $track_artist_name AND track_name = $track_name");
 const insertArtist = db.prepare("INSERT INTO artists (artist_name, artist_mbid, artist_url, artist_image, artist_tags) VALUES ($artist_name, $artist_mbid, $artist_url, $artist_image, $artist_tags)");
@@ -30,6 +37,9 @@ const updateLocalTrackId = db.prepare("UPDATE tracks SET local_album_track_id = 
 const getAllTracksWithLimit = db.prepare("SELECT * FROM tracks WHERE local_album_track_id IS NULL AND track_date > $latest ORDER BY track_date DESC");
 const findLocalId = db.prepare("SELECT album_track_id FROM album_tracks WHERE album_id = $album_id AND album_track_name = $album_track_name COLLATE NOCASE");
 const updateTrack = db.prepare("UPDATE tracks SET local_album_track_id = $trackId WHERE track_id = $id");
+const getTags = db.prepare("SELECT * FROM tags WHERE play_count IS NOT NULL ORDER BY play_count DESC");
+const getTagByName = db.prepare("SELECT * FROM tags WHERE tag_name = $name");
+const updateTag = db.prepare("UPDATE tags SET tag_color = $tag_color,  tag_icon = $tag_icon WHERE tag_id = $id");
 
 app.use(function(req, res, next) {
     res.header("Access-Control-Allow-Origin", "*");
@@ -39,13 +49,35 @@ app.use(function(req, res, next) {
 
 app.get('/api/artist/:id', (req, res) => {
     let artist = {};
-    if (isNaN(parseInt(req.params.id))) {
-        artist = getArtistByName.get({name:req.params.id});
+    let artistInfo = getArtistInfo.all({id:req.params.id});
+    if(artistInfo.length === 0) {
+        artist.error = "No artist found by id " + req.params.id;
+        res.json(artist);
     } else {
-        artist = getArtistById.get({id:req.params.id});
+        artist.artist = {
+            artist_id: artistInfo[0].artist_id,
+            artist_image: artistInfo[0].artist_image,
+            artist_name: artistInfo[0].artist_name,
+            artist_url: artistInfo[0].artist_url,
+            artist_tags: artistInfo[0].artist_tags
+        };
+        artist.albums = [];
+        artistInfo.map(album => {
+            artist.albums.push(
+                {
+                    album_id: album.album_id,
+                    album_name: album.album_name,
+                    album_image: album.album_image,
+                    album_url: album.album_url,
+                    album_artist: album.artist_name,
+                    album_tags: album.album_tags,
+                    album_completed: albumCompleted(album.track_ids, album.album_track_ids),
+                    first_play: album.first_play
+                }
+            );
+        });
+        res.json(artist);
     }
-    if(!artist) artist = { error: "No artist found by id " + req.params.id };
-    res.json(artist);
 });
 app.get('/api/artistsbytag/:tag', (req, res) => {
     let tag = decodeURIComponent(req.params.tag);
@@ -54,10 +86,10 @@ app.get('/api/artistsbytag/:tag', (req, res) => {
     res.json(artists);
 });
 
-app.get('/api/albumsbyartist/:name', (req, res) => {
-    let artist = req.params.name;
-    let albums = getAlbumsByArtist.all({name: artist});
-    if(!albums) albums = {error: "No albums found for artist " + artist};
+app.get('/api/albumsbyartist/:id', (req, res) => {
+    let id = req.params.id;
+    let albums = getAlbumsByArtist.all({id});
+    if(!albums) albums = {error: "No albums found for artist id " + id};
     res.json(albums);
 });
 app.get('/api/albumsbytag/:tag', (req, res) => {
@@ -68,20 +100,17 @@ app.get('/api/albumsbytag/:tag', (req, res) => {
 });
 
 app.get('/api/album/:id', (req, res) => {
-    let album = [];
+    let album = {};
+    let tracks = [];
+    let missing = [];
+    let id = req.params.id;
     if (!isNaN(parseInt(req.params.id))) {
-        album = getAlbumById.all({id:req.params.id});
+        album = getAlbumById.get({id});
+        tracks = getAlbumTracksById.all({id});
+        missing = getMissingTracks.all({id: album.album_artist_id});
     }
     if(!album) album = [{ error: "No album found by id " + req.params.id }];
-    res.json(album);
-});
-app.get('/api/missing/:id', (req, res) => {
-    let tracks = [];
-    if (!isNaN(parseInt(req.params.id))) {
-        tracks = getMissingTracks.all({id:req.params.id});
-    }
-    if(tracks.length === 0) tracks = [{ error: "No missing tracks found for artist id " + req.params.id }];
-    res.json(tracks);
+    res.json({album, tracks, missing});
 });
 app.get('/api/maptracks/:albumtrack/:tracks', (req, res) => {
     let local_album_track_id = req.params.albumtrack;
@@ -142,6 +171,12 @@ app.get('/api/albums/:limit/:page', (req, res) => {
     let albums = getAlbums.all({limit, offset});
     if(!albums) {
         albums = {error: "No more artists found"}
+    } else {
+        albums.map(album => {
+            album.completed = albumCompleted(album.tracks_ids, album.album_track_ids);
+            delete album.tracks_ids;
+            delete album.album_track_ids;
+        })
     };
     let albumCount = getAlbumCount.get()["COUNT(album_id)"];
     let totalPages = Math.ceil(albumCount/limit);
@@ -153,6 +188,33 @@ app.get('/api/triggerupdate', (req, res) => {
     const allTracks = [];
     callUpdate(latest, limit, 1, allTracks, res);
 });
+app.get('/api/gettags', (req, res) => {
+    const tags = getTags.all();
+    res.json(tags);
+});
+app.get('/api/gettagbyname/:name', (req, res) => {
+    let name = decodeURIComponent(req.params.name);
+    let tag = {}
+    if (name) {
+        tag = getTagByName.get({name});
+    } else {
+        tag = {error: "No name found in URL" }
+    }
+    if(tag) {
+        res.json(tag);
+    } else {
+        res.json({error: "No tag found with name " + name});
+    }
+
+});
+app.get('/api/updatetags/:id/:color/:icon', (req, res) => {
+    let id = parseInt(req.params.id);
+    let tag_color = decodeURIComponent(req.params.color);
+    let tag_icon = decodeURIComponent(req.params.icon);
+    updateTag.run({id, tag_color, tag_icon});
+    res.json({status: 'Done!'});
+});
+
 const callUpdate = (latest, limit, page, allTracks, res) => {
     updateDatabase(latest, limit, page, allTracks)
         .then( result => {
@@ -366,5 +428,15 @@ const updateAlbumTrackIds = (latest) => {
         if(trackId) updateTrack.run({ trackId: trackId.album_track_id, id: track.track_id })
         if(index % 100 === 0) console.log(index, "/", allTracksArray.length);
     });
+};
+const albumCompleted = (playedTracks, albumTracks) => {
+    if(!albumTracks || !playedTracks) return false;
+    let albumArray = albumTracks.split(',');
+    let playedArray = playedTracks.split(',');
+    let isCompleted = true;
+    albumArray.map(track => {
+        if(playedArray.indexOf(track) < 0) isCompleted = false;
+    });
+    return isCompleted;
 };
 app.listen(3000, () => console.log('Example app listening on port 3000!'));
