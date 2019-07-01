@@ -17,11 +17,13 @@ export default new Vuex.Store({
     missing: [],
     completedArtists: [],
     completedCount: 0,
-      artists: [],
-      albums: [],
-      activePage: 1,
-      totalPages: 1,
-      limit: 100
+    artists: [],
+    albums: [],
+    activePage: 1,
+    totalPages: 1,
+    limit: 100,
+    tags: {},
+    adminCookie: false
   },
   mutations: {
     setLoading(state, isLoading) {
@@ -42,24 +44,40 @@ export default new Vuex.Store({
       state.completedArtists = completedInfo.completedArtists || [];
       state.completedCount = completedInfo.completedCount || 0;
     },
-      setArtists(state, artists) {
-        state.artists = artists || [];
+    setArtists(state, artists) {
+      state.artists = artists || [];
+    },
+    setAlbums(state, albums) {
+      state.albums = albums || [];
+    },
+    setActivePage(state, activePage) {
+      state.activePage = activePage;
+    },
+    setTotalPages(state, totalPages) {
+      state.totalPages = totalPages;
+    },
+      setTags(state, tag) {
+          Vue.set(state.tags, tag.name, {color: tag.color, icon: tag.icon})
       },
-      setAlbums(state, albums) {
-          state.albums = albums || [];
+      saveTag(state, tag) {
+            Vue.set(state.tags, tag.name, {color: tag.color, icon: tag.icon})
       },
-      setActivePage(state, activePage) {
-        state.activePage = activePage;
-      },
-      setTotalPages(state, totalPages) {
-        state.totalPages = totalPages;
+      setAdmin(state, cookie) {
+        state.adminCookie = cookie;
       }
   },
   actions: {
+    setAdminCookie({ commit }) {
+      document.cookie += "admin=true; expires="+new Date(new Date().getTime()+2592000000)+"; path=/";
+      commit("setAdmin", true);
+    },
+    getAdminCookie({ commit }) {
+      commit("setAdmin", document.cookie.indexOf("admin=true") > -1);
+    },
     getArtistInfo({ commit }, id) {
       if (parseInt(this.state.artist.artist_id) !== parseInt(id))
         commit("setLoading", true);
-      let url = "http://localhost:3000/api/artist/" + id;
+      let url = document.location.protocol + "//" + document.location.hostname + ":3000/api/artist/" + id;
       let callback = r => {
         commit("setArtistInfo", r);
       };
@@ -71,7 +89,7 @@ export default new Vuex.Store({
         album => parseInt(album.album_id) === parseInt(id)
       );
       if (foundAlbum) commit("setAlbumInfo", { album: foundAlbum });
-      let url = "http://localhost:3000/api/album/" + id;
+      let url = document.location.protocol + "//" + document.location.hostname + ":3000/api/album/" + id;
       let callback = r => {
         commit("setAlbumInfo", r);
       };
@@ -79,7 +97,7 @@ export default new Vuex.Store({
     },
     getCompleted({ commit }) {
       let url =
-        "http://localhost:3000/api/completedartists/" + this.state.goalYear;
+        document.location.protocol + "//" + document.location.hostname + ":3000/api/completedartists/" + this.state.goalYear;
       let callback = r => {
         if (!r.error) {
           commit("setCompleted", {
@@ -90,26 +108,52 @@ export default new Vuex.Store({
       };
       fetcher(url, callback);
     },
-      getArtists({commit}, page) {
-        let url = "http://localhost:3000/api/artists/" + page.limit + "/" + page.page;
-        let callback = r => {
-            if(!r.error) {
-                commit('setArtists', r.artists);
-                commit('setActivePage', page.page);
-                commit('setTotalPages', r.totalPages);
-            }
-        };
-        fetcher(url, callback);
-      },
-      getAlbums({commit}, page) {
-        let url = "http://localhost:3000/api/albums/" + page.limit + "/" + page.page;
-        let callback = r => {
-            commit('setAlbums', r.albums);
-            commit('setActivePage', page.page);
-            commit('setTotalPages', r.totalPages);
-        };
-          fetcher(url, callback);
-      }
+    getArtists({ commit }, page) {
+      let url =
+        document.location.protocol + "//" + document.location.hostname + ":3000/api/artists/" + page.limit + "/" + page.page;
+      let callback = r => {
+        if (!r.error) {
+          commit("setArtists", r.artists);
+          commit("setActivePage", page.page);
+          commit("setTotalPages", r.totalPages);
+        }
+      };
+      fetcher(url, callback);
+    },
+    getAlbums({ commit }, page) {
+      let url =
+        document.location.protocol + "//" + document.location.hostname + ":3000/api/albums/" + page.limit + "/" + page.page;
+      let callback = r => {
+        commit("setAlbums", r.albums);
+        commit("setActivePage", page.page);
+        commit("setTotalPages", r.totalPages);
+      };
+      fetcher(url, callback);
+    },
+    getTags({ commit }) {
+          const url = document.location.protocol + "//" + document.location.hostname + ":3000/api/gettags";
+          const callback = tags => {
+              tags.map(tag => commit('setTags', {id: tag.tag_id, name: tag.tag_name, icon: tag.tag_icon || 'info-circle', color: tag.tag_color || '#000000'}));
+          };
+          fetcher(url,callback);
+    },
+    saveTag({ commit }, tag) {
+      const url =
+        document.location.protocol + "//" + document.location.hostname + ":3000/api/updatetags/" +
+        tag.id +
+        "/" +
+        encodeURIComponent(tag.color) +
+        "/" +
+        encodeURIComponent(tag.icon) +
+        "/" +
+        encodeURIComponent(tag.name);
+      const callback = r => {
+          if(r.status === 'Done!') {
+              commit("saveTag", tag)
+          }
+      };
+      fetcher(url, callback);
+    }
   },
   getters: {
     getArtistTags(state) {
@@ -147,6 +191,10 @@ export default new Vuex.Store({
     },
     newPercent(state) {
       return "width: " + state.completedArtists.length / state.goal * 100 + "%";
+    },
+    getTag(state) {
+      return tagName => { return state.tags[tagName] || {id: 0, name: tagName, color: '#bfbfbf', icon: 'info-circle'}
+      }
     }
   }
 });

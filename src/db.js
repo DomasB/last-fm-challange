@@ -3,14 +3,8 @@ const Database = require('better-sqlite3');
 const db = new Database('database/last-fm.db');
 
 const USER = 'briediz';
-const API_KEY = 'e054746cf363b1b4d0f42a5b587054dc';
-//var a = db.prepare('CREATE TABLE tracks ( track_id integer PRIMARY KEY, track_name text NOT NULL, track_artist_name text NOT NULL, track_artist_mbid text, track_album text, track_url text, track_image text, track_date integer )')
-//let albumsDB = db.prepare('CREATE TABLE albums (album_id integer PRIMARY KEY, album_name text NOT NULL, album_artist text, album_mbid text, album_image text, album_tags text)');
-//let albumTracksDB = db.prepare('CREATE TABLE album_tracks (album_track_id integer PRIMARY KEY, album_id integer NOT NULL, album_name text NOT NULL, artist_name text, artist_mbid text, album_track_name text NOT NULL, track_url text, track_duration integer)')
-//let artistsDB = db.prepare('CREATE TABLE artists (artist_id integer PRIMARY KEY, artist_name text NOT NULL, artist_mbid text, artist_url text, artist_image text, artist_tags text)');
-//var a = db.prepare('SELECT name FROM sqlite_master WHERE type = "table"')
-//console.log(artistsDB.run());
-//console.log(a.all())
+const API_KEY = '';
+
 let insertTrack = db.prepare('INSERT INTO tracks (track_name, track_artist_name, track_artist_mbid, track_album, track_url, track_image, track_date, track_new) VALUES ($track_name, $track_artist_name, $track_artist_mbid, $track_album, $track_url, $track_image, $track_date, $track_new)');
 const getTracks = (page, limit) => {
     fetch(

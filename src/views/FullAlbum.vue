@@ -63,7 +63,7 @@
                 let selector = document.getElementById(id);
                 let selectedIndex = selector.selectedIndex;
                 let values = selector.options[selectedIndex].value;
-                let url = "http://localhost:3000/api/maptracks/" + id + "/" + values;
+                let url = document.location.protocol + "//" + document.location.hostname + ":3000/api/maptracks/" + id + "/" + values;
                 let callback = () => {
                     this.setData(albumId)
                 };

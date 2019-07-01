@@ -1,7 +1,7 @@
 const express = require('express');
 const app = express();
-const Database = require('better-sqlite3');
 const fetch = require('node-fetch');
+const Database = require('better-sqlite3');
 const db = new Database('./src/database/last-fm.db');
 
 const USER = 'briediz';
@@ -25,6 +25,7 @@ const getArtists = db.prepare("SELECT * FROM artists LEFT JOIN (SELECT  min(trac
 const getArtistCount = db.prepare("SELECT COUNT(artist_id) FROM artists");
 const getArtistsByTag = db.prepare("SELECT artist_id, artist_name, first_play, artist_tags FROM artists LEFT JOIN (SELECT local_artist_id, min(track_date) AS first_play FROM tracks GROUP BY local_artist_id) ON artist_id = local_artist_id WHERE artist_tags LIKE '%' || $tag || '%' ORDER BY first_play DESC")
 const getCompletedArtists = db.prepare('SELECT artist_id, artist_name, album_track_id, plays, fp AS first_play FROM artists LEFT JOIN (SELECT album_id, album_artist_id, group_concat(album_id || \':\' ||album_track_id) AS album_track_id, group_concat(album_id||\':\'||album_track_id||\':\'||first_play) AS plays, min(first_play) AS first_play FROM albums al LEFT JOIN (SELECT album_id AS album_track_album_id, album_track_id FROM album_tracks ) ON al.album_id = album_track_album_id LEFT JOIN (SELECT local_album_track_id, min(track_date) AS first_play FROM tracks GROUP BY local_album_track_id) ON album_track_id = local_album_track_id GROUP BY album_artist_id) ON artist_id = album_artist_id LEFT JOIN (SELECT min(track_date) AS fp, local_artist_id FROM tracks GROUP BY local_artist_id) ON local_artist_id = artist_id WHERE fp > $year ORDER BY fp DESC');
+const getCompletedArtistsFinal = db.prepare('SELECT artist_id, artist_name, album_track_id, artist_image, artist_url, plays, fp AS first_play FROM artists LEFT JOIN (SELECT album_id, album_artist_id, group_concat(album_id || \':\' ||album_track_id) AS album_track_id, group_concat(album_id||\':\'||album_track_id||\':\'||first_play) AS plays, min(first_play) AS first_play FROM albums al LEFT JOIN (SELECT album_id AS album_track_album_id, album_track_id FROM album_tracks ) ON al.album_id = album_track_album_id LEFT JOIN (SELECT local_album_track_id, min(track_date) AS first_play FROM tracks GROUP BY local_album_track_id) ON album_track_id = local_album_track_id GROUP BY album_artist_id) ON artist_id = album_artist_id LEFT JOIN (SELECT min(track_date) AS fp, local_artist_id FROM tracks GROUP BY local_artist_id) ON local_artist_id = artist_id WHERE fp > $year ORDER BY fp DESC');
 const getAlbumCount = db.prepare("SELECT COUNT(album_id) FROM albums");
 const getAlbumsByTag = db.prepare("SELECT album_id, album_name, album_artist, album_artist_id, first_play, album_tags FROM albums LEFT JOIN (SELECT local_album_id, min(track_date) AS first_play FROM tracks GROUP BY local_album_id) ON album_id = local_album_id WHERE album_tags LIKE '%' || $tag || '%' ORDER BY first_play DESC");
 const getLatestTrackDate = db.prepare("SELECT track_date FROM tracks ORDER BY track_date DESC LIMIT 1");
@@ -40,13 +41,15 @@ const updateTrack = db.prepare("UPDATE tracks SET local_album_track_id = $trackI
 const getTags = db.prepare("SELECT * FROM tags WHERE play_count IS NOT NULL ORDER BY play_count DESC");
 const getTagByName = db.prepare("SELECT * FROM tags WHERE tag_name = $name");
 const updateTag = db.prepare("UPDATE tags SET tag_color = $tag_color,  tag_icon = $tag_icon WHERE tag_id = $id");
+const insertTag = db.prepare("INSERT INTO tags (tag_name, tag_color, tag_icon, play_count) VALUES ($tag_name, $tag_color, $tag_icon, $play_count)");
+const getTagPlayCount = db.prepare("SELECT group_concat(artist_id), artist_tags, sum(playcount) as playcount FROM artists LEFT JOIN (SELECT count(track_id) AS playcount, local_artist_id FROM tracks GROUP BY local_artist_id) ON artist_id = local_artist_id WHERE artist_tags LIKE '%\"' || $tag_name || '\"%' ")
 
 app.use(function(req, res, next) {
     res.header("Access-Control-Allow-Origin", "*");
     res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
     next();
 });
-
+app.use(express.static('dist'))
 app.get('/api/artist/:id', (req, res) => {
     let artist = {};
     let artistInfo = getArtistInfo.all({id:req.params.id});
@@ -165,6 +168,48 @@ app.get('/api/completedartists/:year', (req, res) => {
     let completedArtists = artists.filter(artist => artist.completed).length;
     res.json({completedArtists, artists});
 });
+app.get('/api/completedartistsfinal/:year', (req, res) => {
+    let year = parseInt(req.params.year);
+    let artists = getCompletedArtistsFinal.all({year});
+    let completedArtists = artists.filter(artist => {
+      if(!artist.album_track_id || !artist.plays) return false
+      let albums = {};
+      artist.album_track_id.split(',').map(track => {
+          let currentTrack = track.split(':');
+          if(albums[currentTrack[0]]) {
+            albums[currentTrack[0]].push(currentTrack[1])
+          } else {
+      albums[currentTrack[0]] = [currentTrack[1]]
+          }
+        });
+      let listened = {};
+      artist.plays.split(',').map(track => {
+          let currentTrack = track.split(':');
+          if(listened[currentTrack[0]]) {
+            listened[currentTrack[0]].push([currentTrack[1], currentTrack[2]])
+          } else {
+            listened[currentTrack[0]] = [[currentTrack[1], currentTrack[2]]];
+          }
+        });
+      let artistListened = false
+    Object.keys(albums).forEach(album => {
+      let listenedAlbum =albums[album].every(track => {
+        if(listened[album] && listened[album].find(listenedTrack => listenedTrack[0] == track && listenedTrack[1] > year)) return true
+      })
+      if(listenedAlbum) {
+        artist.album = getAlbumById.get({id:album})
+        artistListened = true
+      }
+    })
+    return artistListened
+    });
+
+    if(!artists) {
+        artists = {error: "No more artists found"}
+    };
+    //let completedArtists = artists.filter(artist => artist.completed).length;
+    res.json({count: completedArtists.length, artists:  completedArtists});
+});
 app.get('/api/albums/:limit/:page', (req, res) => {
     let limit = req.params.limit;
     let offset = (req.params.page-1)*limit;
@@ -207,11 +252,16 @@ app.get('/api/gettagbyname/:name', (req, res) => {
     }
 
 });
-app.get('/api/updatetags/:id/:color/:icon', (req, res) => {
-    let id = parseInt(req.params.id);
-    let tag_color = decodeURIComponent(req.params.color);
-    let tag_icon = decodeURIComponent(req.params.icon);
-    updateTag.run({id, tag_color, tag_icon});
+app.get('/api/updatetags/:id/:color/:icon/:name', (req, res) => {
+    const id = parseInt(req.params.id);
+    const tag_color = decodeURIComponent(req.params.color);
+    const tag_icon = decodeURIComponent(req.params.icon);
+    const tag_name = decodeURIComponent(req.params.name);
+    const updateResult = updateTag.run({id, tag_color, tag_icon});
+    if (updateResult.changes === 0) {
+        const play_count = getTagPlayCount.get({tag_name}).playcount || 0;
+        insertTag.run({tag_name, tag_color, tag_icon, play_count});
+    }
     res.json({status: 'Done!'});
 });
 

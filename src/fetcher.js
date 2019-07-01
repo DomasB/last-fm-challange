@@ -1,6 +1,6 @@
 const fetch = require('node-fetch');
 export default function fetcher(url, callback) {
-    fetch(
+    return fetch(
         url,
         {
             method: "GET",

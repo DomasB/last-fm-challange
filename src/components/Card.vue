@@ -24,7 +24,7 @@
             </div>
         </div>
         <div class="tags-container" v-if="tags">
-            <TagIcon class="tag-icons" v-for="tag in tags" :tagName="tag" isLink></TagIcon>
+            <TagIcon class="tag-icons" v-for="tag in tags" :key="tag" :tagName="tag" isLink></TagIcon>
         </div>
         <div class="card-badges" v-if="badges">
             <div v-for="badge in badges" :class="'badge ' + badge.color">{{badge.text}}</div>
@@ -61,7 +61,7 @@
                 return moment(time*1000).format("YYYY-MM-DD HH:mm")
             },
         },
-        components: { TagIcon }
+        components: { TagIcon: () => import('./TagIcon.vue') }
     };
 </script>
 

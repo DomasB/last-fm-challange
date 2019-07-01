@@ -1,7 +1,7 @@
 <template>
     <div>
         <Pages :totalPages="totalPages" :activePage="page" :path="'/artists/'+limit+'/'" />
-        <div class="artist-list">
+        <div class="artist-list" v-show="page === activePage">
                 <Card
                         v-for="artist in artists"
                         :key="artist.artist_id"
@@ -17,7 +17,7 @@
                         :badges="artist.first_play > $store.state.goalYear ? [{ text:'new', color: 'red' }] : []"
                 ></Card>
         </div>
-        <Loader v-if="artists.length == 0">Loading...</Loader>
+        <Loader v-show="artists.length === 0 || page !== activePage">Loading...</Loader>
         <Pages :totalPages="totalPages" :activePage="page" :path="'/artists/'+limit+'/'" />
     </div>
 </template>
@@ -29,10 +29,6 @@
     import Loader from "@/components/Loader.vue"
     export default {
         name: "Artists",
-        data () {
-            return {
-            }
-        },
         props: ["limit", "page"],
         beforeRouteEnter (to, from, next) {
             //let getArtistDB = db.prepare("SELECT * FROM artists WHERE artist_id = $id");
@@ -77,7 +73,7 @@
         components: {
             Loader,
             Pages,
-            Card
+            Card: () => import('@/components/Card.vue')
         }
     };
 </script>

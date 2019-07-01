@@ -9,14 +9,20 @@ import CompletedArtists from "./views/CompletedArtists.vue";
 import Albums from "./views/Albums.vue";
 import Tag from "./views/Tag.vue";
 import Tags from "./views/Tags.vue";
+import Admin from "./views/AdminCookie.vue";
 Vue.use(Router);
 
 export default new Router({
   routes: [
     {
       path: "/",
-      name: "home",
-      component: Home
+      name: "Completed Artists",
+      redirect: '/completedartists'
+    },
+    {
+      path: "/adminCookie",
+      name: "Admin Cookie",
+      component: Admin
     },
     {
       path: "/about",

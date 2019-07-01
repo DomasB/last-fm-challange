@@ -4,7 +4,7 @@
       <router-link to="/artists/100/1">Artists</router-link> |
       <router-link to="/completedartists/">Completed Artists</router-link> |
       <router-link to="/albums/100/1">Albums</router-link>
-      <button class="update-button" @click="updateDatabase()" :title="update">
+      <button v-if="this.$store.state.adminCookie" class="update-button" @click="updateDatabase()" :title="update">
         <font-awesome-icon icon="sync" :spin="updating" />
       </button>
       <div id="completed" class="progress-bar" :style="completedPercent"></div>
@@ -21,6 +21,9 @@
 import fetcher from "@/fetcher";
 import Loader from "@/components/Loader.vue";
 import FontAwesomeIcon from "@fortawesome/vue-fontawesome";
+import {faAdjust, faAnchor, faAsterisk, faBaseballBall, faBed, faBeer, faBell, faBirthdayCake, faBolt, faBomb, faBookOpen, faBookmark, faBriefcase, faBroadcastTower, faBuilding, faBroom, faBug, faBullhorn, faBullseye, faBurn, faCar, faCertificate, faCheckCircle, faChessKing, faChessQueen, faChessRook, faChild, faChurch, faCircle, faClock, faClosedCaptioning, faCoffee, faCog, faCogs, faComment, faCompactDisc, faCompass, faCompress, faCouch, faCrosshairs, faCrow, faCrown, faCube, faDeaf, faDna, faDotCircle, faDove, faExclamationCircle, faEye, faFeather, faFemale, faFighterJet, faFire, faFlag, faFlask, faFrog, faFrown, faGem, faGenderless, faGlassMartini, faGlasses, faGlobe, faGraduationCap, faHandPaper, faHandPeace, faHome, faHeart, faHeartbeat, faHeadphones, faIndustry, faInfinity, faInfoCircle, faKiwiBird, faLeaf, faLemon, faLifeRing, faLightbulb, faLock, faLocationArrow, faMagnet, faMale, faMap, faMapMarker, faMapPin, faMars, faMarsDouble, faMeh, faMicrochip, faMicrophone, faMinusCircle, faMoon, faMusic, faNeuter, faPaintBrush, faPaw, faPlane, faPills, faPlug, faPoo, faPodcast, faPowerOff, faQuestionCircle, faQuidditch, faRoad, faRobot, faRocket, faSeedling, faShoppingBag, faShower, faSignLanguage, faSkull, faSmile, faSmoking, faSnowflake, faSpaceShuttle, faStar, faSuitcase, faSun, faSyringe, faTablets, faTachometerAlt, faTint, faThermometerFull, faTree, faUmbrella, faUniversity, faUserAstronaut, faUserCircle, faUserSecret, faVenus, faVial, faVolumeUp, faWineGlass, faWrench} from '@fortawesome/fontawesome-free-solid';
+import fontawesome from '@fortawesome/fontawesome';
+fontawesome.library.add(faAdjust, faAnchor, faAsterisk, faBaseballBall, faBed, faBeer, faBell, faBirthdayCake, faBolt, faBomb, faBookOpen, faBookmark, faBriefcase, faBroadcastTower, faBuilding, faBroom, faBug, faBullhorn, faBullseye, faBurn, faCar, faCertificate, faCheckCircle, faChessKing, faChessQueen, faChessRook, faChild, faChurch, faCircle, faClock, faClosedCaptioning, faCoffee, faCog, faCogs, faComment, faCompactDisc, faCompass, faCompress, faCouch, faCrosshairs, faCrow, faCrown, faCube, faDeaf, faDna, faDotCircle, faDove, faExclamationCircle, faEye, faFeather, faFemale, faFighterJet, faFire, faFlag, faFlask, faFrog, faFrown, faGem, faGenderless, faGlassMartini, faGlasses, faGlobe, faGraduationCap, faHandPaper, faHandPeace, faHome, faHeart, faHeartbeat, faHeadphones, faIndustry, faInfinity, faInfoCircle, faKiwiBird, faLeaf, faLemon, faLifeRing, faLightbulb, faLock, faLocationArrow, faMagnet, faMale, faMap, faMapMarker, faMapPin, faMars, faMarsDouble, faMeh, faMicrochip, faMicrophone, faMinusCircle, faMoon, faMusic, faNeuter, faPaintBrush, faPaw, faPlane, faPills, faPlug, faPoo, faPodcast, faPowerOff, faQuestionCircle, faQuidditch, faRoad, faRobot, faRocket, faSeedling, faShoppingBag, faShower, faSignLanguage, faSkull, faSmile, faSmoking, faSnowflake, faSpaceShuttle, faStar, faSuitcase, faSun, faSyringe, faTablets, faTachometerAlt, faTint, faThermometerFull, faTree, faUmbrella, faUniversity, faUserAstronaut, faUserCircle, faUserSecret, faVenus, faVial, faVolumeUp, faWineGlass, faWrench);
 import { faSync } from "@fortawesome/fontawesome-free-solid";
 export default {
   name: "App",
@@ -34,7 +37,7 @@ export default {
     updateDatabase() {
       this.updating = true;
       this.update = "Updating";
-      let url = "http://localhost:3000/api/triggerupdate/";
+      let url = document.location.protocol + "//" + document.location.hostname + ":3000/api/triggerupdate/";
       let callback = r => {
         if (r.status == "Done!") {
           this.updating = false;
@@ -60,6 +63,8 @@ export default {
   },
     created() {
         this.$store.dispatch("getCompleted");
+        this.$store.dispatch("getTags");
+        this.$store.dispatch("getAdminCookie");
     },
   components: {
     FontAwesomeIcon,

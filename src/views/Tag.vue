@@ -1,7 +1,7 @@
 <template>
     <div>
-        <h1><a :href="'https://www.last.fm/tag/' + tag" target="_blank">#{{tag}}</a> <TagIcon @click.native="startEditing()" class="title-tag-icon" :tagName="tag" :tagIcon="tagIcon" :tagColor="tagColor" ></TagIcon></h1> {{tagIcon}}
-        <TagIconSelector v-if="editingTag" @saveIcon="save($event)" :tagName="tag" :tagColor="tagColor" :tagIcon="tagIcon"></TagIconSelector>
+        <h1><a :href="'https://www.last.fm/tag/' + tag" target="_blank">#{{tag}}</a> <TagIcon @click.native="startEditing()" class="title-tag-icon" :tagName="tag" :tagIcon="tagIcon" :tagColor="tagColor" ></TagIcon></h1>
+        <TagIconSelector v-if="editingTag" @saveIcon="save($event)" :tagName="tag" :tagId="tagId" :tagColor="tagColor" :tagIcon="tagIcon"></TagIconSelector>
         <div class="by-tag-section">
             <h2>Artists</h2>
             <div class="by-tag-list">
@@ -72,7 +72,7 @@
             //getArtistDB.get({id:this.id});
         },
         created() {
-            let url = "http://localhost:3000/api/gettagbyname/" + this.tag;
+            let url = document.location.protocol + "//" + document.location.hostname + ":3000/api/gettagbyname/" + this.tag;
             let callback = r => {
                 this.tagIcon = r.tag_icon;
                 this.tagColor = r.tag_color;
@@ -83,7 +83,7 @@
         methods: {
             getPage(tag) {
                 fetch(
-                    "http://localhost:3000/api/artistsbytag/" + tag,
+                    document.location.protocol + "//" + document.location.hostname + ":3000/api/artistsbytag/" + tag,
                     {
                         method: "GET",
                         headers: {
@@ -99,7 +99,7 @@
                         }
                     });
                 fetch(
-                    "http://localhost:3000/api/albumsbytag/" + tag,
+                    document.location.protocol + "//" + document.location.hostname + ":3000/api/albumsbytag/" + tag,
                     {
                         method: "GET",
                         headers: {
@@ -115,14 +115,8 @@
                         }
                     });
             },
-            save(event) {
-                let url = "http://localhost:3000/api/updatetags/" + this.tagId + "/" + encodeURIComponent(event.tag_color) + "/" + encodeURIComponent(event.tag_icon);
-                let callback = r => {
-                    this.tagIcon = event.tag_icon;
-                    this.tagColor = event.tag_color;
-                    this.editingTag = false;
-                }
-                fetcher(url, callback);
+            save() {
+                this.editingTag = false;
             },
             startEditing() {
                 this.editingTag = true;
